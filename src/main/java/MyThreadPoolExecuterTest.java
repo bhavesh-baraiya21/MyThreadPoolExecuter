@@ -42,7 +42,7 @@ class MyThreadPoolExecuter {
     Integer threadIdAssigner = 1000;
     boolean isShutdown = false;
 
-    final List<WorkerThread> threadList = new ArrayList<WorkerThread>();
+    final List<WorkerThread> threadList = new CopyOnWriteArrayList<>();
 
     MyThreadPoolExecuter(Integer minT, Integer maxT, Integer keepAliveTime, MyBlockingQueue queue){
         this.minThread = minT;
@@ -55,7 +55,9 @@ class MyThreadPoolExecuter {
             WorkerThread t = new WorkerThread(workQueue);
             t.setName("worker_" + String.valueOf(threadIdAssigner));
             threadIdAssigner++;
+
             threadList.add(t);
+
             t.start();
         }
 
@@ -79,13 +81,14 @@ class MyThreadPoolExecuter {
     void shutdown(){
         isShutdown = true;
 
-        Thread[] workingThreads = new Thread[Thread.activeCount()];
-        int cnt = Thread.enumerate(workingThreads);
-        System.out.println("Currently " + cnt + " threads are working.");
-
-        for(WorkerThread t: threadList){
-            t.interrupt();
-            System.out.println(t.getName() + "is got interrupted by shutdown().");
+        while(!threadList.isEmpty()){
+            for(WorkerThread t: threadList){
+                if(!t.isThreadWorking){
+                    t.interrupt();
+                    threadList.remove(t);
+                    System.out.println(t.getName() + "is got interrupted by shutdown().");
+                }
+            }
         }
     }
 }
@@ -103,9 +106,7 @@ class AddThread extends Thread{
                 WorkerThread t = new WorkerThread(obj.workQueue);
                 t.setName("worker_" + String.valueOf(obj.threadIdAssigner));
 
-                synchronized (obj.threadList) {
-                    obj.threadList.add(t);
-                }
+                obj.threadList.add(t);
 
                 obj.threadIdAssigner++;
                 t.start();
@@ -131,9 +132,7 @@ class IsWorking extends Thread {
 
             for(WorkerThread t: obj.threadList){
                 if(!t.isThreadWorking && obj.threadList.size() > obj.minThread){
-                    synchronized (obj.threadList){
-                        obj.threadList.remove(t);
-                    }
+                    obj.threadList.remove(t);
 
                     t.interrupt();
                     System.out.println(t.getName() + " is interrupted by IsWorking.");
@@ -200,7 +199,7 @@ class SomeTask implements Runnable {
 
         for(int i=0; i<10; i++){
             printProgressBar(currId, "Task-" + String.valueOf(currId), i*10);
-            ThreadUtils.sleep(100);
+            ThreadUtils.sleep(1000);
         }
 
         System.out.println(Thread.currentThread().getName() + " have completed this task.");
@@ -226,9 +225,16 @@ class PrintingThreadLogs extends Thread {
     }
 
     public void run(){
-        System.out.println("Currently " + ex.threadList.size() + " is running. and " + ex.workQueue.currSize + " tasks remaining.");
+        while(true){
+            System.out.println("Currently " + ex.threadList.size() + " threads are is running. and " + ex.workQueue.currSize + " tasks remaining.");
 
-        ThreadUtils.sleep(1000);
+            ThreadUtils.sleep(1000);
+
+            if(Thread.currentThread().isInterrupted()){
+                System.out.println("Logs are signing off...");
+                break;
+            }
+        }
     }
 }
 
@@ -252,6 +258,9 @@ public class MyThreadPoolExecuterTest {
         MyBlockingQueue queue = new MyBlockingQueue(20);
 
         MyThreadPoolExecuter ex = new MyThreadPoolExecuter(2, 7, 100, queue);
+
+        PrintingThreadLogs printLogs = new PrintingThreadLogs(ex);
+        printLogs.start();
 
         for(int i=0; i<10; i++){
             SomeTask task = new SomeTask();
@@ -284,5 +293,6 @@ public class MyThreadPoolExecuterTest {
         System.out.println("Currently " + Thread.activeCount() + " thread are still remains.");
 
         System.out.println("ThreadPoolExecuter exited.");
+        printLogs.interrupt();
     }
 }
