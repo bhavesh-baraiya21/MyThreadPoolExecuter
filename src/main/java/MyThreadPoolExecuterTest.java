@@ -13,30 +13,36 @@ class WorkerThread extends Thread {
     public void run() {
         while (true) {
             try {
+                if (Thread.currentThread().isInterrupted()) {
+                    System.out.println(Thread.currentThread().getName() + " is interrupted....");
+                    break;
+                }
+
                 Runnable task = taskQueue.getTask();
-                if(task != null){
+                if (task != null) {
                     isThreadWorking = true;
                     task.run();
                     isThreadWorking = false;
                 }
             } catch (Exception ex) {
-                System.out.println(Thread.currentThread().getName() + " is interrupted....");
-//                Thread.currentThread().interrupt();
+                Thread.currentThread().interrupt();
+                ex.printStackTrace();
                 break;
             }
         }
+        System.out.println(Thread.currentThread().getName() + " is exited.");
     }
 }
 
 class MyThreadPoolExecuter {
     Integer minThread;
     Integer maxThread;
-    Integer keepAliveTime;
+    Integer keepAliveTime;          //Remaining for now
     MyBlockingQueue workQueue;
     Integer threadIdAssigner = 1000;
     boolean isShutdown = false;
 
-    List<WorkerThread> threadList = new ArrayList<WorkerThread>();
+    final List<WorkerThread> threadList = new ArrayList<WorkerThread>();
 
     MyThreadPoolExecuter(Integer minT, Integer maxT, Integer keepAliveTime, MyBlockingQueue queue){
         this.minThread = minT;
@@ -93,19 +99,19 @@ class AddThread extends Thread{
 
     public void run(){
         while(!obj.isShutdown){
-            if(Thread.activeCount() <= obj.maxThread && obj.workQueue.currSize > 0){
+            if(obj.threadList.size() <= obj.maxThread && obj.workQueue.currSize > 0){
                 WorkerThread t = new WorkerThread(obj.workQueue);
                 t.setName("worker_" + String.valueOf(obj.threadIdAssigner));
-                obj.threadList.add(t);
+
+                synchronized (obj.threadList) {
+                    obj.threadList.add(t);
+                }
+
                 obj.threadIdAssigner++;
                 t.start();
             }
 
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException ex){
-                ex.printStackTrace();
-            }
+            ThreadUtils.sleep(100);
         }
         System.out.println(Thread.currentThread().getName() + " have exited.");
     }
@@ -124,19 +130,17 @@ class IsWorking extends Thread {
         while(!obj.isShutdown){
 
             for(WorkerThread t: obj.threadList){
-                if(!t.isThreadWorking && Thread.activeCount() > obj.minThread){
-                    obj.threadList.remove(t);
+                if(!t.isThreadWorking && obj.threadList.size() > obj.minThread){
+                    synchronized (obj.threadList){
+                        obj.threadList.remove(t);
+                    }
 
                     t.interrupt();
                     System.out.println(t.getName() + " is interrupted by IsWorking.");
                 }
             }
 
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException ex){
-                ex.printStackTrace();
-            }
+            ThreadUtils.sleep(100);
         }
         System.out.println(Thread.currentThread().getName() + " have exited.");
     }
@@ -196,11 +200,7 @@ class SomeTask implements Runnable {
 
         for(int i=0; i<10; i++){
             printProgressBar(currId, "Task-" + String.valueOf(currId), i*10);
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException ex){
-                ex.printStackTrace();
-            }
+            ThreadUtils.sleep(100);
         }
 
         System.out.println(Thread.currentThread().getName() + " have completed this task.");
@@ -218,49 +218,60 @@ class SomeTask implements Runnable {
     }
 }
 
+class PrintingThreadLogs extends Thread {
+    MyThreadPoolExecuter ex;
+
+    PrintingThreadLogs(MyThreadPoolExecuter ex){
+        this.ex = ex;
+    }
+
+    public void run(){
+        System.out.println("Currently " + ex.threadList.size() + " is running. and " + ex.workQueue.currSize + " tasks remaining.");
+
+        ThreadUtils.sleep(1000);
+    }
+}
+
+class ThreadUtils {
+    public static void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            // You can log the exception or re-interrupt the thread if needed
+            Thread.currentThread().interrupt();
+            System.err.println("Thread was interrupted during sleep: " + e.getMessage());
+        }
+    }
+}
+
 public class MyThreadPoolExecuterTest {
-    public static void main(String[] args){
+    public static void main(String[] args) throws InterruptedException {
         Thread.currentThread().setName("main");
 
         //create a blocking queue.
         MyBlockingQueue queue = new MyBlockingQueue(20);
 
-        MyThreadPoolExecuter ex = new MyThreadPoolExecuter(5, 10, 100, queue);
+        MyThreadPoolExecuter ex = new MyThreadPoolExecuter(2, 7, 100, queue);
 
         for(int i=0; i<10; i++){
             SomeTask task = new SomeTask();
             ex.execute(task);
         }
 
-        try {
-            Thread.sleep(5000);
-        } catch(InterruptedException e){
-            e.printStackTrace();
-        }
+        ThreadUtils.sleep(10000);
 
         for(int i=0; i<10; i++){
             SomeTask task = new SomeTask();
             ex.execute(task);
 
-            try {
-                Thread.sleep(1000);
-            } catch(InterruptedException e){
-                e.printStackTrace();
-            }
+            ThreadUtils.sleep(1000);
         }
 
-        try {
-            Thread.sleep(5000);
-        } catch(InterruptedException e){
-            e.printStackTrace();
-        }
+        ThreadUtils.sleep(1000);
 
         while(queue.currSize > 0){
-            try {
-                Thread.sleep(1000);
-            } catch(InterruptedException e){
-                e.printStackTrace();
-            }
+            ThreadUtils.sleep(1000);
+
             System.out.println("Threads in working queue : " + queue.currSize);
         }
 
@@ -272,14 +283,6 @@ public class MyThreadPoolExecuterTest {
 
         System.out.println("Currently " + Thread.activeCount() + " thread are still remains.");
 
-        while(true){
-            System.out.println(Thread.activeCount());
-
-            try {
-                Thread.sleep(1000);
-            } catch(InterruptedException e){
-                e.printStackTrace();
-            }
-        }
+        System.out.println("ThreadPoolExecuter exited.");
     }
 }
