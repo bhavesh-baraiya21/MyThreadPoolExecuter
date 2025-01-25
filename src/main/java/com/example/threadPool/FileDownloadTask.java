@@ -7,10 +7,14 @@ import java.net.URL;
 public class FileDownloadTask implements Runnable {
     private final String url;
     private final String outputFilePath;
+    static int taskId = 100;
+    int currTaskId;
 
     public FileDownloadTask(String url, String outputFilePath) {
         this.url = url;
         this.outputFilePath = outputFilePath;
+        currTaskId = taskId;
+        taskId++;
     }
 
     @Override
@@ -46,7 +50,7 @@ public class FileDownloadTask implements Runnable {
             totalBytesRead += bytesRead;
 
             int progress = (int) (((double) totalBytesRead / contentLength) * 100);
-            printProgressBar("Downloading", progress);
+            printProgressBar(currTaskId,"Task" + String.valueOf(currTaskId), progress);
         }
 
         outputStream.close();
@@ -55,10 +59,14 @@ public class FileDownloadTask implements Runnable {
         System.out.println("\nDownload completed: " + fileUrl);
     }
 
-    private void printProgressBar(String taskName, int progress) {
+    private static synchronized void printProgressBar(int line, String taskName, int progress) {
+        // Calculate the filled portion of the progress bar
         int filledLength = (progress * 50) / 100;
         String progressBar = "=".repeat(filledLength) + " ".repeat(50 - filledLength);
 
-        System.out.printf("\r%s [%s] %d%%", taskName, progressBar, progress);
+        // Move the cursor to the specific line and update the progress bar
+        System.out.printf("\033[%d;0H", line); // Move to the specific line (line number corresponds to thread ID)
+        System.out.print("\033[K"); // Clear the line
+        System.out.printf("%s [%s] %d%%%n", taskName, progressBar, progress);
     }
 }
