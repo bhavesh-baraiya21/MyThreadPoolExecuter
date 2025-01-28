@@ -3,7 +3,7 @@ package com.example.threadPool;
 public class WorkerThread extends Thread {
     private final MyBlockingQueue taskQueue;
     boolean isThreadWorking = false;
-    long lastWorkedTime = System.currentTimeMillis(); // Track last work time
+    long lastWorkedTime = System.currentTimeMillis();
     MyThreadPoolExecuter ex;
 
     public WorkerThread(MyBlockingQueue taskQueue, MyThreadPoolExecuter ex) {
@@ -16,7 +16,6 @@ public class WorkerThread extends Thread {
         while (true) {
             try {
                 if (Thread.currentThread().isInterrupted()) {
-                    System.out.println(Thread.currentThread().getName() + " is interrupted....");
                     break;
                 }
 
@@ -26,7 +25,6 @@ public class WorkerThread extends Thread {
                     task.run();
                     isThreadWorking = false;
                     lastWorkedTime = System.currentTimeMillis();
-
                     synchronized (ex.isWorking) {
                         ex.isWorking.notify();
                     }
@@ -34,7 +32,6 @@ public class WorkerThread extends Thread {
             } catch (Exception exp) {
                 isThreadWorking = false;
                 lastWorkedTime = System.currentTimeMillis();
-
                 synchronized (ex.isWorking) {
                     ex.isWorking.notify();
                 }
@@ -43,12 +40,11 @@ public class WorkerThread extends Thread {
                 break;
             }
 
-            if(System.currentTimeMillis() - lastWorkedTime > ex.keepAliveTime){
+            if (System.currentTimeMillis() - lastWorkedTime > ex.keepAliveTime) {
                 synchronized (ex.isWorking) {
                     ex.isWorking.notify();
                 }
             }
         }
-        System.out.println(Thread.currentThread().getName() + " is exited.");
     }
 }

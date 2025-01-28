@@ -4,29 +4,26 @@ public class IsWorking extends Thread {
 
     MyThreadPoolExecuter obj;
 
-    IsWorking(MyThreadPoolExecuter obj){
+    IsWorking(MyThreadPoolExecuter obj) {
         this.obj = obj;
     }
 
     @Override
-    public void run(){
-        while(!obj.isShutdown){
+    public void run() {
+        while (!obj.isShutdown) {
             boolean waitFlag = false;
-            for(WorkerThread t: obj.threadList){
-                if(!t.isThreadWorking && obj.threadList.size() > obj.minThread && obj.keepAliveTime < (System.currentTimeMillis() - t.lastWorkedTime)){
+            for (WorkerThread t: obj.threadList) {
+                if (!t.isThreadWorking && obj.threadList.size() > obj.minThread && obj.keepAliveTime < (System.currentTimeMillis() - t.lastWorkedTime)) {
                     obj.threadList.remove(t);
                     t.interrupt();
-                    synchronized (obj.addThread){
+                    synchronized (obj.addThread) {
                         obj.addThread.notify();
                     }
-
-                    System.out.println(t.getName() + " is interrupted by IsWorking.");
                     waitFlag = true;
                 }
             }
 
-            //If no extra thread is free then go to wait.
-            if(waitFlag){
+            if (waitFlag) {
                 synchronized (this) {
                     try {
                         this.wait();
@@ -36,6 +33,5 @@ public class IsWorking extends Thread {
                 }
             }
         }
-        System.out.println(Thread.currentThread().getName() + " have exited.");
     }
 }

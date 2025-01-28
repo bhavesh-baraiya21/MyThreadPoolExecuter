@@ -6,32 +6,23 @@ import java.util.*;
 public class Main {
     public static void main(String[] args) {
         Thread.currentThread().setName("main");
+        long startTimeThread = System.currentTimeMillis();
 
-        // Configuration
         String urlsFilePath = "/Users/bhavesh_baraiya21/MyThreadPoolExecuter/src/main/java/com/example/threadPool/urls.txt";
         String outputDirectory = "/Users/bhavesh_baraiya21/MyThreadPoolExecuter/downloads";
-
-        // Create output directory if it doesn't exist
         File outputDir = new File(outputDirectory);
         if (!outputDir.exists()) {
             outputDir.mkdir();
         }
-
-        // Read URLs from file
         List<String> urls = readUrlsFromFile(urlsFilePath);
         if (urls.isEmpty()) {
             System.err.println("No URLs found in the file.");
             return;
         }
 
-        // Initialize thread pool
         MyBlockingQueue taskQueue = new MyBlockingQueue(10);
-        MyThreadPoolExecuter threadPool = new MyThreadPoolExecuter(2, 7, 100, taskQueue);
+        MyThreadPoolExecuter threadPool = new MyThreadPoolExecuter(3, 10, 3000, taskQueue);
 
-        PrintingThreadLogs threadLogs = new PrintingThreadLogs(threadPool);
-        threadLogs.start();
-
-        // Submit tasks to thread pool
         for (String url : urls) {
             String fileName = getFileNameFromUrl(url);
             String outputPath = outputDirectory + File.separator + fileName;
@@ -40,14 +31,31 @@ public class Main {
             threadPool.execute(task);
         }
 
-        // Wait for downloads to complete
         while (taskQueue.currSize > 0) {
             ThreadUtils.sleep(1000);
         }
 
         threadPool.shutdown();
-        System.out.println("All downloads completed.");
-        threadLogs.interrupt();
+        System.out.println("All downloads completed using thread.");
+        long endTimeThread = System.currentTimeMillis();
+
+        long startTimeSeq = System.currentTimeMillis();
+
+        for (String url : urls) {
+            String fileName = getFileNameFromUrl(url);
+            String outputPath = outputDirectory + File.separator + fileName;
+
+            FileDownloadTask task = new FileDownloadTask(url, outputPath);
+            task.run();
+        }
+
+        long endTimeSeq = System.currentTimeMillis();
+
+        long threadTimeTaken = endTimeThread-startTimeThread;
+        long seqTimeTaken = endTimeSeq-startTimeSeq;
+
+        System.out.println("For thread total time taken: " + threadTimeTaken);
+        System.out.println("For sequential total time taken: " + seqTimeTaken);
     }
 
     private static List<String> readUrlsFromFile(String filePath) {

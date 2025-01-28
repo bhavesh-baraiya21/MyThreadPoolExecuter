@@ -18,13 +18,11 @@ public class SomeTask implements Runnable {
     }
 
     private static synchronized void printProgressBar(int line, String taskName, int progress) {
-        // Calculate the filled portion of the progress bar
         int filledLength = (progress * 50) / 100;
         String progressBar = "=".repeat(filledLength) + " ".repeat(50 - filledLength);
 
-        // Move the cursor to the specific line and update the progress bar
-        System.out.printf("\033[%d;0H", line); // Move to the specific line (line number corresponds to thread ID)
-        System.out.print("\033[K"); // Clear the line
+        System.out.printf("\033[%d;0H", line);
+        System.out.print("\033[K");
         System.out.printf("%s [%s] %d%%%n", taskName, progressBar, progress);
     }
 }
